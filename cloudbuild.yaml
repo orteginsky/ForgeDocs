@@ -1,0 +1,36 @@
+steps:
+  # 1. Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$BUILD_ID', '.']
+
+  # 2. Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$BUILD_ID']
+
+  # 3. Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$BUILD_ID'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-secrets=GOOGLE_TOKEN_JSON=FORGE_DOCS_TOKEN:latest'
+      - '--set-env-vars=WORKSPACE_DOMAIN=${_WORKSPACE_DOMAIN},GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
+
+images:
+  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$BUILD_ID'
+
+substitutions:
+  _SERVICE_NAME: forgedocs
+  _REGION: us-central1
+  _WORKSPACE_DOMAIN: supportmendoza.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY
