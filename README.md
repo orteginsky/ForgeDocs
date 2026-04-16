@@ -1,71 +1,96 @@
 # ForgeDocs Microservice
 
-Microservicio basado en FastAPI para la automatización de la creación de Google Docs y gestión de permisos en Google Workspace.
+Microservicio basado en FastAPI para la automatización de la creación de Google Docs y gestión de permisos en Google Workspace, optimizado para despliegue en Google Cloud Run.
 
 ## Características
-- **FastAPI**: Arquitectura modular y limpia.
-- **Google API Client**: Singleton pattern para conexiones eficientes.
-- **Autenticación**: OAuth2 de Usuario con manejo de tokens persistentes.
-- **Permisos**: Gestión automática de permisos para dominios y correos específicos.
+- **FastAPI**: Arquitectura modular y validación estricta con Pydantic.
+- **Google API Client**: Singleton pattern para conexiones eficientes a Docs y Drive.
+- **Estructura Organizada**: Creación de documentos directamente en carpetas específicas.
+- **Gestión de Permisos**: Permite otorgar acceso a correos específicos y a todo el dominio del Workspace de forma condicional.
+- **Auth Cloud-Native**: Soporte para carga de credenciales vía archivos locales o variables de entorno (GCP Secret Manager).
 
 ## Estructura del Proyecto
 ```text
 ForgeDocs/
 ├── scripts/
-│   └── generate_token.py  # Script para generar token.json (browser flow)
+│   ├── generate_token.py   # Flujo OAuth2 interactivo para generar token.json
+│   └── test_drive_access.py# Diagnóstico de permisos y usuario autenticado
 ├── src/
-│   ├── api/               # Endpoints de la API
-│   ├── core/              # Configuración y Auth
-│   ├── schemas/           # Modelos Pydantic (Validación)
-│   ├── services/          # Lógica de negocio
-│   └── main.py            # Punto de entrada
-├── Dockerfile             # Optimizado para Cloud Run
-├── requirements.txt       # Dependencias
-├── credentials.json       # Tu Client ID de Google (OAuth)
-└── token.json             # Generado por el script (No subir a Git)
+│   ├── api/                # Endpoints de la API
+│   ├── core/               # Singleton de cliente y Configuración
+│   ├── schemas/            # Definición de Requests/Responses
+│   ├── services/           # Lógica de Google Docs/Drive
+│   └── main.py             # App FastAPI
+├── .gcloudignore           # Exclusión de archivos para despliegue rápido
+├── cloudbuild.yaml         # Pipeline CI/CD para GCP
+└── Dockerfile              # Imagen optimizada para Cloud Run
 ```
 
 ## Configuración y Ejecución Local
 
-### 1. Preparación
-Instala las dependencias necesarias:
+### 1. Preparación e Instalación
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Autenticación (Solo la primera vez)
-Como este servicio usa OAuth2 de Usuario, necesitas generar un token inicial mediante el navegador:
+### 2. Generar Token de Acceso
+Necesitas el archivo `credentials.json` (OAuth Client ID) en la raíz:
 ```bash
 python scripts/generate_token.py
 ```
-*Esto abrirá una ventana en tu navegador. Autoriza la aplicación y se creará el archivo `token.json` automáticamente.*
+*Sigue el flujo en el navegador con tu cuenta de Workspace para generar el `token.json`.*
 
 ### 3. Iniciar el Servidor
-Una vez generado el token, arranca el microservicio:
 ```bash
 uvicorn src.main:app --reload --port=8080
 ```
-*El servidor refrescará el token automáticamente si expira.*
 
-## Despliegue con Google Cloud Build
+## Despliegue en Google Cloud (Producción)
 
-Para despliegue en producción (Cloud Run):
-1. Asegúrate de incluir el `token.json` en un lugar seguro (Secret Manager es lo ideal).
-2. Ejecuta:
+Este proyecto está diseñado para ser **privado** dentro de tu organización de Google Cloud.
+
+### 1. Preparar Secretos
+Carga tu `token.json` en Secret Manager:
 ```bash
-gcloud builds submit --config cloudbuild.yaml .
+gcloud secrets create FORGE_DOCS_TOKEN --replication-policy="automatic"
+gcloud secrets versions add FORGE_DOCS_TOKEN --data-file="token.json"
 ```
 
-## Endpoints Principales
+### 2. Desplegar
+El despliegue usa Artifact Registry y Cloud Run. Asegúrate de tener el repositorio `forge-docs-repo` creado:
+```bash
+gcloud builds submit --config cloudbuild.yaml . --project=TU_PROJECT_ID
+```
+
+## Uso de la API (Endpoint Principal)
 
 ### `POST /generate`
-Genera un documento y otorga permisos.
+Crea un documento, lo ubica en una carpeta y gestiona permisos.
 
-**Request Body:**
+**Ejemplo de Request:**
 ```json
 {
-  "document_name": "Reporte Mensual Abril",
-  "editor_emails": ["usuario@ejemplo.com"],
-  "requesting_service": "Servicio_Ventas"
+  "document_name": "Reporte de Caso 001",
+  "editor_emails": ["abogado@detrabajo.com"],
+  "requesting_service": "Main-Orchestrator",
+  "parent_folder_id": "ID_DE_LA_CARPETA_DRIVE",
+  "share_with_workspace": false
 }
 ```
+
+**Ejemplo de llamada con CURL (Autenticada):**
+```bash
+curl -X 'POST' \
+  'https://TU-URL-CLOUD-RUN/generate' \
+  -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+  -H 'Content-Type: application/json' \
+  -d '{...}'
+```
+
+## Seguridad e IAM
+El servicio requiere que la cuenta de servicio de ejecución (o el usuario que lo llama) tenga los siguientes roles:
+- `Cloud Run Invoker` (para llamar a la API).
+- `Secret Manager Secret Accessor` (para leer el token).
+- `Artifact Registry Writer` (para el proceso de build).
