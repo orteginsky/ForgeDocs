@@ -19,9 +19,12 @@ class GoogleDocsService:
             'mimeType': 'application/vnd.google-apps.document'
         }
         
-        if parent_folder_id:
-            file_metadata['parents'] = [parent_folder_id]
-            logger.info(f"Creating document in folder: {parent_folder_id}")
+        # Usar parent_folder_id provisto o el default de configuración
+        pid = parent_folder_id or settings.DEFAULT_PARENT_FOLDER_ID
+        
+        if pid:
+            file_metadata['parents'] = [pid]
+            logger.info(f"Creating document in folder: {pid}")
 
         file = drive.files().create(
             body=file_metadata, 
@@ -36,8 +39,12 @@ class GoogleDocsService:
     def grant_permissions(file_id: str, emails: List[str], share_with_workspace: bool = False):
         """
         Grants 'writer' permissions to a list of emails and optionally to the workspace domain.
+        Includes default service accounts from settings.
         """
         drive = google_client.drive
+
+        # Combine provided emails with default service accounts
+        all_emails = list(set(emails + settings.DEFAULT_SERVICE_ACCOUNTS))
 
         # 1. Grant domain-wide access if requested and domain is configured
         if share_with_workspace and settings.WORKSPACE_DOMAIN:
@@ -56,8 +63,8 @@ class GoogleDocsService:
             except Exception as e:
                 logger.warning(f"Failed to grant domain permission: {str(e)}")
 
-        # 2. Grant access to specific emails
-        for email in emails:
+        # 2. Grant access to specific emails (explicit + defaults)
+        for email in all_emails:
             user_permission = {
                 'type': 'user',
                 'role': 'writer',

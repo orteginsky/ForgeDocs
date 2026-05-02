@@ -22,7 +22,7 @@ steps:
       - 'managed'
       - '--no-allow-unauthenticated'
       - '--set-secrets=FORGE_DOCS_TOKEN=FORGE_DOCS_TOKEN:latest'
-      - '--set-env-vars=WORKSPACE_DOMAIN=${_WORKSPACE_DOMAIN},GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
+      - '--set-env-vars=WORKSPACE_DOMAIN=${_WORKSPACE_DOMAIN},GOOGLE_CLOUD_PROJECT=$PROJECT_ID,DEFAULT_PARENT_FOLDER_ID=${_DEFAULT_FOLDER},DEFAULT_SERVICE_ACCOUNTS=${_DEFAULT_SA}'
 
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/forge-docs-repo/${_SERVICE_NAME}:$BUILD_ID'
@@ -31,6 +31,8 @@ substitutions:
   _SERVICE_NAME: forgedocs
   _REGION: us-central1
   _WORKSPACE_DOMAIN: supportmendoza.com
+  _DEFAULT_FOLDER: 1wpPCQCqXlHmWTCe0aUe9-P1LlR2sjNAQ
+  _DEFAULT_SA: drive-sheets@ortega-473114.iam.gserviceaccount.com,sa-transcriptor@ortega-473114.iam.gserviceaccount.com,docs-writer-sa@ortega-473114.iam.gserviceaccount.com
 
 options:
   logging: CLOUD_LOGGING_ONLY
